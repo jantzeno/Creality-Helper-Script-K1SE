@@ -174,6 +174,14 @@ function printing_gcode_from_folder(){
   done
 }
 
+activate_creality_camera() {
+  if python3 "$HS_FILES/scripts/activate_creality_camera.py"; then
+    ok_msg "Creality Camera has been activated!"
+  else
+    error_msg "Creality Camera activation failed. See the error above."
+  fi
+}
+
 function enable_camera_settings(){
   enable_camera_settings_message
   local yn

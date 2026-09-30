@@ -13,6 +13,7 @@ function tools_menu_ui_k1() {
   hr
   menu_option ' 4' 'Enable' 'camera settings in Moonraker'
   menu_option ' 5' 'Disable' 'camera settings in Moonraker'
+  menu_option '14' 'Activate' 'Creality Camera'
   hr
   menu_option ' 6' 'Restart' 'Nginx service'
   menu_option ' 7' 'Restart' 'Moonraker service'
@@ -103,6 +104,8 @@ function tools_menu_k1() {
         run "restore_previous_firmware" "tools_menu_ui_k1";;
       13)
         run "reset_factory_settings" "tools_menu_ui_k1";;
+      14)
+        run "activate_creality_camera" "tools_menu_ui_k1";;
       B|b)
         clear; main_menu; break;;
       Q|q)
