@@ -30,6 +30,26 @@ Configure `http://PRINTER-IP:8080/?action=stream` and
 `PRINTER-IP` with the printer's address. The helper reports the port configured
 in the firmware. Firmware updates may require activating the camera again.
 
+## Default Web Interface
+
+Select **Customize → Remove Creality Web Interface** to put Fluidd or Mainsail
+on port 80. If both are installed, choose the interface when prompted. Its
+existing port (`4408` for Fluidd or `4409` for Mainsail) remains available.
+This disables Creality Print Wi-Fi printing; **Restore Creality Web Interface**
+reverses the change.
+
+The helper validates Nginx configuration and checks the selected page over
+HTTP before reporting success. Failed changes trigger recovery of the previous
+configuration and stock service state. Backups and diagnostics are saved under
+`/usr/data/helper-script-backup/web-interface/`. Unrecognized listener layouts
+are rejected without changing the live configuration.
+
+If the old interface still appears at `http://PRINTER-IP/`, try a private
+browser window, then clear cached files/site data for the printer's IP.
+
+Run the regression check locally with `python3 tests/test_creality_web_interface.py`.
+It uses temporary files and simulated services; no printer or network is needed.
+
 ## Wiki
 
 Guide to use it is available here: [Wiki](https://guilouz.github.io/Creality-Helper-Script-Wiki/)
