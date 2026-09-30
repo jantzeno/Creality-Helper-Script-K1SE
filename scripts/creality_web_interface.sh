@@ -7,7 +7,7 @@ remove_creality_web_interface_message() {
   title 'Remove Creality Web Interface' "$yellow"
   inner_line
   hr
-  printf ' │ %-62s │\n' "Replaces Creality Web Interface with Fluidd or Mainsail on"
+  printf ' │ %-62s │\n' "Replaces Creality Web Interface with Mainsail on"
   printf ' │ %-62s │\n' "port 80. Creality Print Wi-Fi printing becomes unavailable."
   hr
   bottom_line
@@ -30,14 +30,11 @@ web_interface_config() {
     {
       line = $0
       sub(/[[:space:]]*#.*/, "", line)
-      if (line ~ /^[[:space:]]*listen[[:space:]]+440[89][[:space:]]+default_server;[[:space:]]*$/) {
-        port = line
-        sub(/^[[:space:]]*listen[[:space:]]+/, "", port)
-        sub(/[[:space:]].*$/, "", port)
-        seen[port]++
-        previous = port
+      if (line ~ /^[[:space:]]*listen[[:space:]]+4409[[:space:]]+default_server;[[:space:]]*$/) {
+        seen++
+        previous = 1
         print
-        if (port == target) print "        listen 80;"
+        if (target == 4409) print "        listen 80;"
         next
       }
       if (line ~ /^[[:space:]]*listen[[:space:]]+80;[[:space:]]*$/ && previous) {
@@ -45,12 +42,12 @@ web_interface_config() {
         previous = ""
         next
       }
-      if (line ~ /^[[:space:]]*listen[[:space:]]+([^ ;]*:)?80([[:space:];]|$)/) invalid = 1
+      if (line ~ /^[[:space:]]*listen[[:space:]]+([^ ;]*:)?(80|4408|4409)([[:space:];]|$)/) invalid = 1
       if (line ~ /[^[:space:]]/) previous = ""
       print
     }
     END {
-      if (seen[4408] != 1 || seen[4409] != 1 || owners > 1 || invalid) exit 1
+      if (seen != 1 || owners > 1 || invalid) exit 1
     }
   ' "$1"
 }
@@ -60,15 +57,10 @@ web_interface_change() (
   target="$1"
   nginx="$NGINX_FOLDER/sbin/nginx"
   config="$NGINX_FOLDER/nginx/nginx.conf"
-  if [ "$model" = "3V3" ]; then
-    nginx=$(command -v nginx) || exit 1
-    config=/etc/nginx/nginx.conf
-  fi
   service_dir=$(dirname "$CREALITY_WEB_FILE")
   expected=
   case "$target" in
     mainsail) port=4409; expected="$MAINSAIL_FOLDER/index.html";;
-    fluidd) port=4408; expected="$FLUIDD_FOLDER/index.html";;
     creality) port=0;;
     *) echo "Unknown web interface: $target" >&2; exit 1;;
   esac
@@ -77,8 +69,8 @@ web_interface_change() (
     exit 1
   fi
   if [ "$target" = creality ]; then
-    if [ ! -f "$INITD_FOLDER/S99start_app" ] || [ -d "$GUPPY_SCREEN_FOLDER" ]; then
-      echo "Restore the stock startup service and remove Guppy Screen first." >&2
+    if [ ! -f "$INITD_FOLDER/S99start_app" ]; then
+      echo "Restore the stock startup service first." >&2
       exit 1
     fi
   elif [ ! -s "$expected" ]; then
@@ -261,6 +253,7 @@ web_interface_change() (
   cp -p "$config" "$candidate" || exit 1
   if ! web_interface_config "$config" "$port" >"$candidate"; then
     echo "Unrecognized or ambiguous Nginx listener layout; nothing changed." >&2
+    echo "Install the clean Mainsail Nginx configuration using the README upgrade steps." >&2
     exit 1
   fi
   "$nginx" -t -c "$config" >"$backup/nginx.log" 2>&1 || exit 1
@@ -305,7 +298,6 @@ web_interface_result() {
     echo "Open http://$address/"
     case "$target" in
       mainsail) port=4409;;
-      fluidd) port=4408;;
       creality) port=;;
     esac
     [ -z "$port" ] || echo "Also available at http://$address:$port/"
@@ -319,7 +311,7 @@ web_interface_result() {
 
 remove_creality_web_interface() {
   remove_creality_web_interface_message
-  local yn interface_choice
+  local yn
   while true; do
     remove_msg "Creality Web Interface" yn
     case "$yn" in
@@ -328,24 +320,11 @@ remove_creality_web_interface() {
       *) error_msg "Please select a correct choice!";;
     esac
   done
-  if [ -d "$FLUIDD_FOLDER" ] && [ -d "$MAINSAIL_FOLDER" ]; then
-    while true; do
-      read -r -p "Default interface on port 80 (fluidd/mainsail): " interface_choice || return 0
-      case "$interface_choice" in
-        FLUIDD|fluidd) interface_choice=fluidd; break;;
-        MAINSAIL|mainsail) interface_choice=mainsail; break;;
-        *) error_msg "Please select a correct choice!";;
-      esac
-    done
-  elif [ -d "$MAINSAIL_FOLDER" ]; then
-    interface_choice=mainsail
-  elif [ -d "$FLUIDD_FOLDER" ]; then
-    interface_choice=fluidd
-  else
-    error_msg "Install Fluidd or Mainsail first."
+  if [ ! -d "$MAINSAIL_FOLDER" ]; then
+    error_msg "Install Mainsail first."
     return 0
   fi
-  web_interface_result "$interface_choice"
+  web_interface_result mainsail
 }
 
 restore_creality_web_interface() {

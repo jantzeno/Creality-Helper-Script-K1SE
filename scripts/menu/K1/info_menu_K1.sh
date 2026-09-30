@@ -20,16 +20,6 @@ function check_file_k1() {
   fi
 }
 
-function check_simplyprint_k1() {
-  if [ ! -f "$MOONRAKER_CFG" ]; then
-    echo -e "${red}✗"
-  elif grep -q "\[simplyprint\]" "$MOONRAKER_CFG"; then
-    echo -e "${green}✓"
-  else
-    echo -e "${red}✗"
-  fi
-}
-
 function info_menu_ui_k1() {
   top_line
   title '[ INFORMATION MENU ]' "${yellow}"
@@ -37,7 +27,6 @@ function info_menu_ui_k1() {
   hr
   subtitle '•ESSENTIALS:'
   info_line "$(check_folder_k1 "$MOONRAKER_FOLDER")" 'Moonraker & Nginx'
-  info_line "$(check_folder_k1 "$FLUIDD_FOLDER")" 'Fluidd'
   info_line "$(check_folder_k1 "$MAINSAIL_FOLDER")" 'Mainsail'
   hr
   subtitle '•UTILITIES:'
@@ -61,19 +50,9 @@ function info_menu_ui_k1() {
   info_line "$(check_file_k1 "$CAMERA_SETTINGS_FILE")" 'Camera Settings Control'
   info_line "$(check_file_k1 "$USB_CAMERA_FILE")" 'USB Camera Support'
   hr
-  subtitle '•REMOTE ACCESS:'
-  info_line "$(check_folder_k1 "$OCTOEVERYWHERE_FOLDER")" 'OctoEverywhere'
-  info_line "$(check_folder_k1 "$MOONRAKER_OBICO_FOLDER")" 'Obico'
-  info_line "$(check_folder_k1 "$GUPPYFLO_FOLDER")" 'GuppyFLO'
-  info_line "$(check_folder_k1 "$MOBILERAKER_COMPANION_FOLDER")" 'Mobileraker Companion'
-  info_line "$(check_folder_k1 "$OCTOAPP_COMPANION_FOLDER")" 'OctoApp Companion'
-  info_line "$(check_simplyprint_k1)" 'SimplyPrint'
-  hr
   subtitle '•CUSTOMIZATION:'
   info_line "$(check_file_k1 "$BOOT_DISPLAY_FILE")" 'Custom Boot Display'
   info_line "$(check_file_k1 "$CREALITY_WEB_FILE")" 'Creality Web Interface'
-  info_line "$(check_folder_k1 "$GUPPY_SCREEN_FOLDER")" 'Guppy Screen'
-  info_line "$(check_file_k1 "$FLUIDD_LOGO_FILE")" 'Creality Dynamic Logos for Fluidd'
   hr
   inner_line
   hr

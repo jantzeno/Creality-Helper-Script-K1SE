@@ -29,8 +29,8 @@ function printing_gcode_from_folder_message(){
   title 'Fix printing Gcode files from folder' "${yellow}"
   inner_line
   hr
-  echo -e " │ ${cyan}From Fluidd or Mainsail it's possible to classify your Gcode ${white}│"
-  echo -e " │ ${cyan}files in folders but by default it's not possible to start   ${white}│"
+  echo -e " │ ${cyan}From Mainsail it's possible to classify your Gcode files    ${white}│"
+  echo -e " │ ${cyan}in folders but by default it's not possible to start         ${white}│"
   echo -e " │ ${cyan}a print from a folder. This fix allows that.                 ${white}│"
   hr
   bottom_line
@@ -42,7 +42,7 @@ function enable_camera_settings_message(){
   inner_line
   hr
   echo -e " │ ${cyan}This allows to enable camera settings in Moonraker for       ${white}│"
-  echo -e " │ ${cyan}Fluidd and Mainsail Web interfaces.                          ${white}│"
+  echo -e " │ ${cyan}the Mainsail Web interface.                                 ${white}│"
   hr
   bottom_line
 }
@@ -53,7 +53,7 @@ function disable_camera_settings_message(){
   inner_line
   hr
   echo -e " │ ${cyan}This allows to disable camera settings in Moonraker for      ${white}│"
-  echo -e " │ ${cyan}Fluidd and Mainsail Web interfaces.                          ${white}│"
+  echo -e " │ ${cyan}the Mainsail Web interface.                                 ${white}│"
   hr
   bottom_line
 }
@@ -155,12 +155,7 @@ function printing_gcode_from_folder(){
           rm -f "$KLIPPER_KLIPPY_FOLDER"/gcode.pyc
         fi
         echo -e "Info: Linking files..."
-        if [ "$model" = "K1" ]; then
-          ln -sf "$KLIPPER_GCODE_URL" "$KLIPPER_KLIPPY_FOLDER"/gcode.py
-        fi
-        if [ "$model" = "3V3" ]; then
-          ln -sf "$KLIPPER_GCODE_3V3_URL" "$KLIPPER_KLIPPY_FOLDER"/gcode.py
-        fi
+        ln -sf "$KLIPPER_GCODE_URL" "$KLIPPER_KLIPPY_FOLDER"/gcode.py
         echo -e "Info: Restarting Klipper service..."
         restart_klipper
         ok_msg "Fix has been applied successfully!"
@@ -370,9 +365,6 @@ function clear_logs(){
         rm -f "$USR_DATA"/creality/userdata/log/*.gz
         rm -f "$USR_DATA"/creality/userdata/fault_code/*
         rm -f "$PRINTER_DATA_FOLDER"/logs/*
-        if [ -d "$GUPPYFLO_FOLDER" ]; then
-          rm -f "$GUPPYFLO_FOLDER"/guppyflo.log
-        fi
         ok_msg "Logs files have been cleared!"
         return;;
       N|n)

@@ -76,7 +76,7 @@ elif name == "nginx":
             save()
             print("nginx: simulated reload error", file=sys.stderr)
             sys.exit(1)
-        owner = re.search(r"listen\s+(440[89])\s+default_server;\s+listen 80;", text)
+        owner = re.search(r"listen\s+(4409)\s+default_server;\s+listen 80;", text)
         state["nginx_port"] = int(owner[1]) if owner else 0
         state["active_config"] = text
         save()
@@ -94,8 +94,8 @@ elif name == "curl":
         if not actual and "web-server" in state["running"]:
             actual = "creality"
     status = 200
-    if actual in (4408, 4409):
-        page = root / ("fluidd" if actual == 4408 else "mainsail") / "index.html"
+    if actual == 4409:
+        page = root / "mainsail/index.html"
         body = page.read_text() if page.exists() else ""
         if not body:
             status = 404
@@ -135,27 +135,21 @@ with tempfile.TemporaryDirectory(prefix="web interface ") as directory:
     tool.chmod(0o755)
     for name in ("nginx", "curl", "pidof", "killall", "sleep", "mv"):
         (tools / name).symlink_to(tool)
-    for interface in ("mainsail", "fluidd"):
-        (root / interface).mkdir()
-        (root / interface / "index.html").write_text("<html>" + interface + "</html>")
+    (root / "mainsail").mkdir()
+    (root / "mainsail/index.html").write_text("<html>mainsail</html>")
     (root / "init").mkdir()
     (root / "init/S99start_app").touch()
     (root / "nginx/sbin").mkdir(parents=True)
     (root / "nginx/sbin/nginx").symlink_to(tool)
-    script = root / "script.sh"
-    script.write_text(source.read_text().replace(
-        "config=/etc/nginx/nginx.conf", 'config="$WEB_TEST_ROOT/etc/nginx/nginx.conf"'
-    ))
+    script = source
     env = dict(os.environ, WEB_TEST_ROOT=str(root), PATH=str(tools) + ":" + os.environ["PATH"],
                CURL=str(tools / "curl"), NGINX_FOLDER=str(root / "nginx"),
                CREALITY_WEB_FILE=str(services / "web-server"),
-               MAINSAIL_FOLDER=str(root / "mainsail"), FLUIDD_FOLDER=str(root / "fluidd"),
-               HS_BACKUP_FOLDER=str(root / "backups"), INITD_FOLDER=str(root / "init"),
-               GUPPY_SCREEN_FOLDER=str(root / "guppy"))
+               MAINSAIL_FOLDER=str(root / "mainsail"),
+               HS_BACKUP_FOLDER=str(root / "backups"), INITD_FOLDER=str(root / "init"))
 
-    def setup(model="K1", owner=0, monitor=True):
-        env["model"] = model
-        config = root / ("etc/nginx/nginx.conf" if model == "3V3" else "nginx/nginx/nginx.conf")
+    def setup(owner=0, monitor=True):
+        config = root / "nginx/nginx/nginx.conf"
         config.parent.mkdir(parents=True, exist_ok=True)
         text = template
         if owner:
@@ -212,36 +206,38 @@ echo MENU_ALIVE
             assert ("ERROR:" in result.stdout) != success, result
         return result
 
-    # Both supported layouts and interfaces; repeated switching and restoring.
-    for model in ("K1", "3V3"):
-        for target, port in (("mainsail", 4409), ("fluidd", 4408)):
-            config = setup(model)
-            original = snapshot(config)
-            result = run(target)
-            assert state()["nginx_port"] == port and not state()["running"]
-            assert config.read_text().count("listen 80;") == 1
-            assert config.stat().st_mode == original[1]
-            assert f"http://192.0.2.1:{port}/" in result.stdout
-            assert "private window" in result.stdout and "site data" in result.stdout
-            switched = snapshot(config)
-            run(target)
-            assert snapshot(config) == switched
-            run("creality")
-            assert snapshot(config) == original
-            run("creality")
-            assert snapshot(config) == original
+    # Repeated Mainsail switching and stock restoration are idempotent.
+    config = setup()
+    original = snapshot(config)
+    result = run()
+    assert state()["nginx_port"] == 4409 and not state()["running"]
+    assert config.read_text().count("listen 80;") == 1
+    assert config.stat().st_mode == original[1]
+    assert "http://192.0.2.1:4409/" in result.stdout
+    assert "private window" in result.stdout and "site data" in result.stdout
+    switched = snapshot(config)
+    run()
+    assert snapshot(config) == switched
+    run("creality")
+    assert snapshot(config) == original
+    run("creality")
+    assert snapshot(config) == original
 
     # Preflight failure must not stop stock processes or reload Nginx.
     for fault in ("validation", "missing_marker", "ambiguous", "duplicate", "missing_index",
-                  "backup", "conflict"):
+                  "backup", "conflict", "legacy", "addressed_legacy", "duplicate_mainsail"):
         config = setup()
         if fault == "missing_marker":
             config.write_text(template.replace("listen 4409 default_server;", "listen 9999;"))
         elif fault == "ambiguous":
-            config.write_text(template.replace("listen 4408 default_server;", "listen 80;"))
+            config.write_text(template.replace("listen 4409 default_server;", "listen 80;\nlisten 4409 default_server;"))
         elif fault == "duplicate":
             config.write_text(template.replace("listen 4409 default_server;",
                                               "listen 4409 default_server;\nlisten 80;\nlisten 80;"))
+        elif fault in ("legacy", "addressed_legacy", "duplicate_mainsail"):
+            listener = {"legacy": "4408 default_server", "addressed_legacy": "127.0.0.1:4408",
+                        "duplicate_mainsail": "4409 default_server"}[fault]
+            config.write_text(template.replace("    server {", "    server {\n        listen " + listener + ";", 1))
         elif fault == "missing_index":
             (root / "mainsail/index.html").rename(root / "saved-index")
         elif fault == "backup":
@@ -252,8 +248,10 @@ echo MENU_ALIVE
         else:
             (root / "fault").write_text(fault)
         before = snapshot(config)
-        run(success=False)
+        result = run(success=False)
         assert snapshot(config) == before and state()["reloads"] == 0, fault
+        if fault in ("legacy", "addressed_legacy"):
+            assert "README upgrade steps" in result.stderr, result
         assert "killall" not in (root / "commands").read_text(), fault
         if fault == "missing_index":
             (root / "saved-index").rename(root / "mainsail/index.html")
@@ -296,15 +294,27 @@ echo MENU_ALIVE
         run(action=action, answer="n\n", success=False)
         assert snapshot(config) == before and not (root / "commands").read_text()
     setup()
-    run(action="remove", answer="y\ninvalid\nMAINSAIL\n", success=None)
+    run(action="remove", answer="y\n")
     assert state()["nginx_port"] == 4409
     run(action="restore", answer="y\n")
 
-    for target, other, port in (("mainsail", "fluidd", 4409), ("fluidd", "mainsail", 4408)):
-        setup()
-        (root / other).rename(root / "absent")
-        run(action="remove", answer="y\n")
-        assert state()["nginx_port"] == port
-        (root / "absent").rename(root / other)
+    config = setup()
+    before = snapshot(config)
+    (root / "mainsail").rename(root / "absent")
+    result = run(action="remove", answer="y\n", success=False)
+    assert "Install Mainsail first" in result.stdout
+    assert snapshot(config) == before and not (root / "commands").read_text()
+    (root / "absent").rename(root / "mainsail")
 
-print("PASS: switch/restore, both layouts, HTTP identity, preflight, rollback, signals and menus")
+    config = setup(owner=4409)
+    before = snapshot(config)
+    (root / "init/S99start_app").unlink()
+    run(action="restore", answer="y\n", success=False)
+    assert snapshot(config) == before and not (root / "commands").read_text()
+
+    config = setup()
+    before = snapshot(config)
+    run("fluidd", success=False)
+    assert snapshot(config) == before and not (root / "commands").read_text()
+
+print("PASS: Mainsail/stock switching, legacy rejection, HTTP identity, rollback, signals and menus")
