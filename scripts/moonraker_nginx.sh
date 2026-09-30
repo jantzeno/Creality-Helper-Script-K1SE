@@ -46,10 +46,8 @@ function install_moonraker_nginx(){
           cp "$NGINX_SERVICE_URL" "$INITD_FOLDER"/S50nginx
           chmod +x "$INITD_FOLDER"/S50nginx
         fi
-        if [ ! -f "$INITD_FOLDER"/S56moonraker_service ]; then
-          cp "$MOONRAKER_SERVICE_URL" "$INITD_FOLDER"/S56moonraker_service
-          chmod +x "$INITD_FOLDER"/S56moonraker_service
-        fi
+        cp "$MOONRAKER_SERVICE_URL" "$INITD_FOLDER"/S56moonraker_service
+        chmod +x "$INITD_FOLDER"/S56moonraker_service
         echo -e "Info: Copying Moonraker configuration file..."
         if [ -f "$KLIPPER_CONFIG_FOLDER"/moonraker.conf ]; then
           rm -f "$KLIPPER_CONFIG_FOLDER"/moonraker.conf

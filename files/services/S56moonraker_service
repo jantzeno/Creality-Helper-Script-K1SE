@@ -12,20 +12,56 @@ PRINTER_CONFIG_DIR=$PRINTER_DATA_DIR/config
 PRINTER_LOGS_DIR=$PRINTER_DATA_DIR/logs
 PID_FILE=/var/run/moonraker.pid
 
+is_running() {
+        pid=$(cat "$PID_FILE" 2>/dev/null) || return 1
+        case "$pid" in
+          ''|*[!0-9]*|0|1) return 1 ;;
+        esac
+        kill -0 "$pid" 2>/dev/null || return 1
+        # A stale PID may have been reused by an unrelated process.
+        [ "$(tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null)" = \
+          "$PROG $PY_SCRIPT -d $PRINTER_DATA_DIR " ]
+}
+
 start() {
-        [ -d $PRINTER_DATA_DIR ] || mkdir -p $PRINTER_DATA_DIR
-        [ -d $PRINTER_CONFIG_DIR ] || mkdir -p $PRINTER_CONFIG_DIR
-        [ -d $PRINTER_LOGS_DIR ] || mkdir -p $PRINTER_LOGS_DIR
-        rm -rf $MOONRAKER_TMP_DIR && mkdir -p $MOONRAKER_TMP_DIR
+        is_running && return 0
+        rm -f "$PID_FILE" || return 1
+        mkdir -p "$PRINTER_DATA_DIR" "$PRINTER_CONFIG_DIR" "$PRINTER_LOGS_DIR" || return 1
+        rm -rf "$MOONRAKER_TMP_DIR" && mkdir -p "$MOONRAKER_TMP_DIR" || return 1
         export TMPDIR=$MOONRAKER_TMP_DIR
-        HOME=/root start-stop-daemon -S -q -b -m -p $PID_FILE \
-          --exec $PROG -- $PY_SCRIPT -d $PRINTER_DATA_DIR
+        # K1 SE BusyBox cannot reliably background Moonraker with -b.
+        HOME=/root "$PROG" "$PY_SCRIPT" -d "$PRINTER_DATA_DIR" </dev/null >/dev/null 2>&1 &
+        child_pid=$!
+        if ! printf '%s\n' "$child_pid" > "$PID_FILE"; then
+                kill "$child_pid" 2>/dev/null
+                wait "$child_pid" 2>/dev/null
+                rm -f "$PID_FILE"
+                return 1
+        fi
+        # Catch immediate launch failures; API readiness is checked by clients.
+        sleep 1
+        if ! is_running; then
+                rm -f "$PID_FILE"
+                echo "Moonraker failed to start" >&2
+                return 1
+        fi
 }
 stop() {
-        start-stop-daemon -K -q -p $PID_FILE
+        if is_running; then
+                kill "$pid" || return 1
+                for attempt in 1 2 3 4 5 6 7 8 9 10; do
+                        is_running || break
+                        sleep 1
+                done
+                if is_running; then
+                        echo "Moonraker did not stop; keeping $PID_FILE" >&2
+                        return 1
+                fi
+        fi
+        rm -f "$PID_FILE"
 }
 restart() {
-        stop
+        stop || return 1
         sleep 1
         start
 }
@@ -41,7 +77,7 @@ case "$1" in
         restart
         ;;
   *)
-        echo "Usage: $0 {start|stop|restart}"
+        echo "Usage: $0 {start|stop|restart|reload}"
         exit 1
 esac
 
